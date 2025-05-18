@@ -13,7 +13,7 @@
             color: #1c1e21;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start; /* Align to top for scrolling */
             min-height: 100vh;
             padding: 20px;
             box-sizing: border-box;
@@ -25,11 +25,14 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 700px;
+            margin-top: 20px; /* Add some margin at the top */
+            margin-bottom: 20px;
         }
         h1 {
-            color: #1877f2; /* Facebook Blue or similar */
+            color: #1877f2;
             text-align: center;
             font-size: 28px;
+            margin-top: 0;
             margin-bottom: 25px;
         }
         label {
@@ -38,30 +41,53 @@
             font-weight: 500;
             color: #606770;
         }
-        textarea {
+        input[type="text"], input[type="number"] {
             width: 100%;
-            min-height: 180px;
-            margin-bottom: 15px;
-            padding: 12px;
+            padding: 10px;
+            margin-bottom: 10px;
             border-radius: 6px;
             border: 1px solid #ccd0d5;
-            font-family: monospace;
-            font-size: 14px;
             box-sizing: border-box;
-            resize: vertical;
+            font-size: 14px;
         }
-        textarea:focus {
+        input[type="text"]:focus, input[type="number"]:focus {
             border-color: #1877f2;
             box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
             outline: none;
         }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .url-input-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .url-input-container input[type="text"] {
+            flex-grow: 1;
+            margin-bottom: 0; /* Remove bottom margin as it's handled by container */
+            margin-right: 8px;
+        }
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: normal;
+            color: #1c1e21;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px; 
+            height: 18px;
+            accent-color: #1877f2;
+        }
         .button-group {
             display: flex;
             gap: 10px;
+            margin-top: 25px; /* Add margin above main buttons */
             margin-bottom: 20px;
         }
         button {
-            flex-grow: 1;
             padding: 12px 18px;
             background-color: #1877f2;
             color: white;
@@ -71,6 +97,7 @@
             font-size: 16px;
             font-weight: 500;
             transition: background-color 0.2s ease;
+            flex-grow: 1; /* Make main buttons take equal space */
         }
         button:hover {
             background-color: #166fe5;
@@ -83,10 +110,27 @@
         button.secondary {
             background-color: #e4e6eb;
             color: #1c1e21;
+            flex-grow: 0; /* Secondary buttons don't grow as much */
         }
-        button.secondary:hover {
-            background-color: #d8dade;
+        button.small {
+            padding: 6px 10px;
+            font-size: 13px;
+            flex-grow: 0; 
         }
+        button.danger {
+             background-color: #fa3e3e;
+        }
+        button.danger:hover {
+             background-color: #e03030;
+        }
+
+        #resultsContainer h2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ... (rest of your existing styles for results, loader, messages remain the same) ... */
         #resultsContainer {
             margin-top: 25px;
         }
@@ -136,7 +180,6 @@
             background-color: #ffebe8;
             color: #c92a1e;
         }
-        /* Card style for results */
         .result-item {
             background-color: #fff;
             border: 1px solid #dddfe2;
@@ -155,20 +198,39 @@
     <div class="container">
         <h1>Run LinkedIn Scraper Actor</h1>
         
-        <label for="actorInput">Actor Input (JSON):</label>
-        <textarea id="actorInput" placeholder="Enter JSON input for the actor...">{
-    "urls": [
-        "https://www.linkedin.com/posts/linkedin_no-is-a-complete-sentence-activity-7247998907798978560-J_hB?utm_source=share&utm_medium=member_desktop",
-        "https://www.linkedin.com/company/amazon"
-    ],
-    "limitPerSource": 5,
-    "deepScrape": false,
-    "rawData": false
-}</textarea>
-        
+        <div class="input-group">
+            <label>URLs to scrape:</label>
+            <div id="urlsContainer">
+                <div class="url-input-container">
+                    <input type="text" class="url-input" placeholder="https://www.linkedin.com/posts/..." value="https://www.linkedin.com/posts/linkedin_no-is-a-complete-sentence-activity-7247998907798978560-J_hB?utm_source=share&utm_medium=member_desktop">
+                    <!-- Remove button for the first field can be added if needed, or handled by clearing -->
+                </div>
+                <div class="url-input-container">
+                     <input type="text" class="url-input" placeholder="https://www.linkedin.com/company/..." value="https://www.linkedin.com/company/amazon">
+                </div>
+            </div>
+            <button id="addUrlButton" class="secondary small" type="button">+ Add URL</button>
+        </div>
+
+        <div class="input-group">
+            <label for="limitPerSource">Max posts/items per URL (Limit):</label>
+            <input type="number" id="limitPerSource" value="5" min="1">
+        </div>
+
+        <div class="input-group checkbox-group">
+            <label>
+                <input type="checkbox" id="deepScrape">
+                Deep Scrape (e.g., load comments, replies - might take longer & use more CUs)
+            </label>
+            <label>
+                <input type="checkbox" id="rawData">
+                Include Raw Data (provides more extensive, less processed data)
+            </label>
+        </div>
+
         <div class="button-group">
-            <button id="runActorButton">Run Actor</button>
-            <button id="clearInputButton" class="secondary">Clear Input</button>
+            <button id="runActorButton" type="button">Run Actor</button>
+            <button id="clearAllInputsButton" class="secondary" type="button">Reset Inputs</button>
         </div>
         
         <div class="loader" id="loader"></div>
@@ -176,8 +238,8 @@
         <div id="errorMessage" class="message error-message" style="display: none;"></div>
         
         <div id="resultsContainer">
-            <h2>Results: <button id="clearResultsButton" class="secondary" style="float: right; padding: 5px 10px; font-size: 13px;">Clear Results</button></h2>
-            <div id="resultsOutput"> <!-- Changed from pre to div for flexible content -->
+            <h2>Results: <button id="clearResultsButton" class="secondary small" style="padding: 5px 10px; font-size: 13px;">Clear Results</button></h2>
+            <div id="resultsOutput">
                 Actor results will appear here...
             </div>
         </div>
