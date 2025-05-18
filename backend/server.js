@@ -2,13 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const { ApifyClient } = require('apify-client');
 const cors = require('cors');
+const path = require('path'); // Added for serving static files
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors()); // Enable CORS for all routes
+app.use(cors()); // Enable CORS for all routes - still useful for local dev or if API is called from other origins
 app.use(express.json()); // Parse JSON bodies
+
+// Serve static files from the frontend directory
+// Assumes 'frontend' directory is sibling to 'backend' directory
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Initialize Apify Client
 // Make sure to set your APIFY_API_TOKEN in a .env file
@@ -26,8 +31,6 @@ app.post('/run-actor', async (req, res) => {
         }
 
         if (!actorInput || Object.keys(actorInput).length === 0) {
-            // Use default input if none is provided in the request body
-            // You might want to remove this or make it more sophisticated
             console.log('No input provided in request body, using default input.');
             actorInput = {
                 "urls": [
@@ -53,15 +56,17 @@ app.post('/run-actor', async (req, res) => {
 
     } catch (error) {
         console.error('Error running actor or fetching results:', error);
-        // Check if the error is from ApifyClient or a general error
         const errorMessage = error.message || 'An unexpected error occurred.';
         const errorStatus = error.statusCode || 500;
         res.status(errorStatus).json({ error: errorMessage, details: error });
     }
 });
 
-app.get('/', (req, res) => {
-    res.send('Backend server is running. Use POST /run-actor to trigger the Apify actor.');
+// For any GET request not handled by static files or other routes, serve index.html
+// This is useful for single-page applications with client-side routing
+app.get('*', (req, res) => {
+    // Ensure this path correctly points to your frontend's index.html
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 app.listen(port, () => {

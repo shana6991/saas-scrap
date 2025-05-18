@@ -3,10 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const runActorButton = document.getElementById('runActorButton');
     const resultsOutput = document.getElementById('resultsOutput');
     const loader = document.getElementById('loader');
-    const statusMessageElement = document.getElementById('statusMessage'); // Renamed for clarity
-    const errorMessageElement = document.getElementById('errorMessage');   // Renamed for clarity
+    const statusMessageElement = document.getElementById('statusMessage');
+    const errorMessageElement = document.getElementById('errorMessage');
 
-    const backendUrl = 'http://localhost:3001/run-actor'; // Adjust if your backend runs elsewhere
+    const backendUrl = '/run-actor'; // Changed to relative path
 
     runActorButton.addEventListener('click', async () => {
         // Clear previous messages and results
