@@ -1,77 +1,117 @@
 require('dotenv').config();
 const express = require('express');
 const { ApifyClient } = require('apify-client');
+const { createClient } = require('@supabase/supabase-js'); // Import Supabase
 const cors = require('cors');
-const path = require('path'); // Added for serving static files
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors()); // Enable CORS for all routes - still useful for local dev or if API is called from other origins
-app.use(express.json()); // Parse JSON bodies
-
-// Serve static files from the frontend directory
-// Assumes 'frontend' directory is sibling to 'backend' directory
+app.use(cors());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Initialize Apify Client
-// Make sure to set your APIFY_API_TOKEN in a .env file
 const apifyClient = new ApifyClient({
     token: process.env.APIFY_API_TOKEN,
 });
 
+// Initialize Supabase Client
+let supabase;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+    console.log('Supabase client initialized.');
+} else {
+    console.warn('Supabase URL or Anon Key not provided. Supabase client not initialized.');
+}
+
+
 app.post('/run-actor', async (req, res) => {
+    const actorId = 'Wpp1BZ6yGWjySadk3';
+    let actorInput = req.body;
+    let runDetails = {}; // To store run details for Supabase logging
+    let apifyResults = [];
+
     try {
-        const actorId = 'Wpp1BZ6yGWjySadk3'; // Your specific actor ID
-        let actorInput = req.body; // Get input from request body
-
         if (!process.env.APIFY_API_TOKEN) {
-            return res.status(500).json({ error: 'APIFY_API_TOKEN is not configured in .env file.' });
+            throw new Error('APIFY_API_TOKEN is not configured.');
         }
-
         if (!actorInput || Object.keys(actorInput).length === 0) {
-            console.log('No input provided in request body, using default input.');
+            console.log('No input provided, using default.'); // Simplified default input handling for brevity
             actorInput = {
-                "urls": [
-                    "https://www.linkedin.com/posts/linkedin_no-is-a-complete-sentence-activity-7247998907798978560-J_hB?utm_source=share&utm_medium=member_desktop",
-                    "https://www.linkedin.com/company/amazon",
-                    "https://www.linkedin.com/search/results/content/?datePosted=%22past-24h%22&keywords=ai&origin=FACETED_SEARCH"
-                ],
-                "limitPerSource": 10,
-                "deepScrape": true,
-                "rawData": false
+                urls: ["https://www.linkedin.com/company/amazon"],
+                limitPerSource: 2,
+                deepScrape: false,
+                rawData: false 
             };
         }
 
         console.log(`Running actor ${actorId} with input:`, actorInput);
         const run = await apifyClient.actor(actorId).call(actorInput);
-        console.log('Actor run initiated. Run ID:', run.id, 'Default Dataset ID:', run.defaultDatasetId);
+        runDetails = { apify_run_id: run.id, apify_dataset_id: run.defaultDatasetId, actor_input: actorInput };
+        console.log('Actor run initiated:', runDetails);
 
-        console.log('Fetching results from dataset...');
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
-        
+        apifyResults = items;
         console.log(`Results fetched: ${items.length} items`);
-        res.json({ runId: run.id, datasetId: run.defaultDatasetId, results: items });
+        
+        // Attempt to save to Supabase (fire and forget for now, or add proper error handling)
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('actor_runs')
+                .insert([
+                    {
+                        apify_run_id: runDetails.apify_run_id,
+                        apify_dataset_id: runDetails.apify_dataset_id,
+                        actor_input: actorInput,
+                        results: apifyResults,
+                        status: 'SUCCESS'
+                    }
+                ])
+                .select(); // Optionally select to see the inserted data or get ID
+
+            if (error) {
+                console.error('Supabase save error:', error);
+                // Don't let Supabase error break the main response to user
+            } else {
+                console.log('Successfully saved to Supabase:', data);
+            }
+        }
+
+        res.json({ runId: run.id, datasetId: run.defaultDatasetId, results: apifyResults });
 
     } catch (error) {
-        console.error('Error running actor or fetching results:', error);
-        const errorMessage = error.message || 'An unexpected error occurred.';
-        const errorStatus = error.statusCode || 500;
-        res.status(errorStatus).json({ error: errorMessage, details: error });
+        console.error('Error in /run-actor:', error.message);
+        // Save error to Supabase as well
+        if (supabase && runDetails.apify_run_id) { // Only if we have a run ID
+             await supabase
+                .from('actor_runs')
+                .insert([
+                    {
+                        apify_run_id: runDetails.apify_run_id, // Might be undefined if actor.call failed early
+                        apify_dataset_id: runDetails.apify_dataset_id,
+                        actor_input: actorInput,
+                        status: 'ERROR',
+                        error_message: error.message
+                    }
+                ]);
+        }
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
 });
 
-// For any GET request not handled by static files or other routes, serve index.html
-// This is useful for single-page applications with client-side routing
 app.get('*', (req, res) => {
-    // Ensure this path correctly points to your frontend's index.html
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 app.listen(port, () => {
     console.log(`Backend server listening at http://localhost:${port}`);
     if (!process.env.APIFY_API_TOKEN) {
-        console.warn('Warning: APIFY_API_TOKEN is not set. Please create a .env file with your Apify API token.');
+        console.warn('Warning: APIFY_API_TOKEN is not set.');
+    }
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+        console.warn('Warning: SUPABASE_URL or SUPABASE_ANON_KEY is not set. Supabase integration might fail.');
     }
 });
