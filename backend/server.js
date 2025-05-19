@@ -11,7 +11,8 @@ const port = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Serve static files from the 'dist' folder of the frontend
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Initialize Apify Client
 const apifyClient = new ApifyClient({
@@ -102,8 +103,9 @@ app.post('/run-actor', async (req, res) => {
     }
 });
 
+// Fallback for client-side routing - serve index.html from the 'dist' folder
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 app.listen(port, () => {
